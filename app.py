@@ -10,7 +10,7 @@ import time
 import json
 
 # ==========================================
-DISCORD_BOT_TOKEN = 'dán_token_bot_discord_vào_đây'
+DISCORD_BOT_TOKEN = 'MTMzMDg4Nzk2NDI2NzUxNTkzNA.Gdnigp.xdve_AlqdzV9iipvMwqYBsWaO78UVn2IZalhzM'
 # ==========================================
 
 CONFIG_FILE = "config.json"
