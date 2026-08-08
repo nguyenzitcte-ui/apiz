@@ -1,7 +1,6 @@
-import discord
-from discord.ext import commands
-from flask import Flask, request, render_template_string
+import telebot
 from threading import Thread
+from flask import Flask, request, render_template_string
 import requests
 import base64
 from nacl import encoding, public
@@ -13,6 +12,7 @@ CONFIG_FILE = "config.json"
 SETTINGS_FILE = "settings.json"
 
 app = Flask(__name__)
+bot = None  # Khởi tạo bot sau khi có token
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -48,14 +48,14 @@ HTML_TEMPLATE = """
 <body>
 
 <div class="container">
-    <h1>⚙️ CÀI ĐẶT HỆ THỐNG</h1>
-    <div class="status {% if bot_token %}status-on{% else %}status-off{% endif %}">
-        Trạng thái Bot: {% if bot_token %} ✅ Đã cấu hình Token {% else %} ❌ Chưa cấu hình Token {% endif %}
+    <h1>⚙️ CÀI ĐẶT TELEGRAM BOT</h1>
+    <div class="status {% if tg_token %}status-on{% else %}status-off{% endif %}">
+        Trạng thái Bot: {% if tg_token %} ✅ Đã cấu hình {% else %} ❌ Chưa cấu hình {% endif %}
     </div>
-    <form action="/save_bot_token" method="POST">
+    <form action="/save_tg_token" method="POST">
         <div class="form-group">
-            <label>Discord Bot Token</label>
-            <input type="text" name="bot_token" value="{{ bot_token }}" placeholder="Dán Token Bot Discord vào đây..." required>
+            <label>Telegram Bot Token (Lấy từ @BotFather)</label>
+            <input type="text" name="tg_token" placeholder="Dán Token Telegram Bot vào đây..." required>
         </div>
         <button type="submit" class="btn-save">💾 Lưu & Khởi động Bot</button>
     </form>
@@ -110,12 +110,15 @@ def save_json(file, data):
 def dashboard():
     settings = load_json(SETTINGS_FILE)
     configs = load_json(CONFIG_FILE)
-    return render_template_string(HTML_TEMPLATE, configs=configs, bot_token=settings.get("bot_token", ""))
+    return render_template_string(HTML_TEMPLATE, configs=configs, tg_token=settings.get("tg_token", ""))
 
-@app.route('/save_bot_token', methods=['POST'])
-def save_bot_token():
-    save_json(SETTINGS_FILE, {"bot_token": request.form.get('bot_token')})
-    return "Đã lưu Token! Hệ thống đang khởi động lại... <script>window.location.href='/';</script>"
+@app.route('/save_tg_token', methods=['POST'])
+def save_tg_token():
+    token = request.form.get('tg_token')
+    save_json(SETTINGS_FILE, {"tg_token": token})
+    # Lưu lại rồi tự động tắt app để Render restart, bot sẽ tự chạy với token mới
+    os._exit(1)
+    return "Đang lưu..."
 
 @app.route('/add', methods=['POST'])
 def add_config():
@@ -216,45 +219,52 @@ def setup_and_run_rdp(config):
     create_github_secret(gh, owner, REPO_NAME, "DISCORD_WEBHOOK", wh)
     github_api(gh, "POST", f"/repos/{owner}/{REPO_NAME}/actions/workflows/{WORKFLOW_FILE}/dispatches", {"ref": "main", "inputs": {"duration": "1h"}})
 
-# --- DISCORD BOT ---
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+# --- LOGIC TELEGRAM BOT ---
+def start_telegram_bot(tg_token):
+    tg_bot = telebot.TeleBot(tg_token)
+    
+    @tg_bot.message_handler(commands=['start'])
+    def start_msg(message):
+        tg_bot.reply_to(message, "🤖 Chào mừng đến với AI STV RDP Manager!\nGõ /list để xem danh sách RDP.")
+        
+    @tg_bot.message_handler(commands=['list'])
+    def list_msg(message):
+        configs = load_json(CONFIG_FILE)
+        if not configs:
+            return tg_bot.reply_to(message, "Chưa có cấu hình nào. Vào Web để thêm!")
+        text = "📋 *Danh sách RDP:*\n\n"
+        for i, c in enumerate(configs):
+            text += f"`{i}` - *{c['name']}*\n"
+        text += "\nGõ `/run <số>` để chạy (VD: /run 0)"
+        tg_bot.reply_to(message, text, parse_mode="Markdown")
+        
+    @tg_bot.message_handler(commands=['run'])
+    def run_msg(message):
+        try:
+            index = int(message.text.split()[1])
+            configs = load_json(CONFIG_FILE)
+            if 0 <= index < len(configs):
+                tg_bot.reply_to(message, f"🚀 Đang chạy RDP cho: *{configs[index]['name']}*...", parse_mode="Markdown")
+                Thread(target=setup_and_run_rdp, args=(configs[index],)).start()
+            else:
+                tg_bot.reply_to(message, "❌ Số thứ tự không hợp lệ.")
+        except:
+            tg_bot.reply_to(message, "❌ Lệnh sai. Dùng /run <số>")
+            
+    tg_bot.infinity_polling()
 
-@bot.event
-async def on_ready():
-    print(f'Bot {bot.user} đã online!')
-
-@bot.command()
-async def rdp(ctx):
-    configs = load_json(CONFIG_FILE)
-    if not configs:
-        return await ctx.send("Chưa có cấu hình nào. Vào web để thêm!")
-    desc = "**Chọn cấu hình RDP để chạy:**\n"
-    for i, c in enumerate(configs):
-        desc += f"`{i}` - {c['name']}\n"
-    desc += "\nGõ `!run <số>` (VD: `!run 0`)"
-    await ctx.send(desc)
-
-@bot.command()
-async def run(ctx, index: int):
-    configs = load_json(CONFIG_FILE)
-    if 0 <= index < len(configs):
-        await ctx.send(f"🚀 Đang chạy RDP cho: {configs[index]['name']}...")
-        Thread(target=setup_and_run_rdp, args=(configs[index],)).start()
+# --- KHỞI ĐỘNG HỆ THỐNG ---
+if __name__ == "__main__":
+    # 1. Chạy Flask Web Dashboard
+    port = int(os.environ.get('PORT', 5000))
+    Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
+    
+    # 2. Kiểm tra xem có Telegram Token chưa, nếu có thì chạy Bot
+    settings = load_json(SETTINGS_FILE)
+    tg_token = settings.get("tg_token")
+    if tg_token:
+        print("Telegram Bot đang chạy...")
+        start_telegram_bot(tg_token)
     else:
-        await ctx.send("Số thứ tự không hợp lệ!")
-
-# --- CHẠY HỆ THỐNG ---
-# Chạy Flask (Web)
-port = int(os.environ.get('PORT', 5000))
-Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
-
-# Kiểm tra xem có Token Bot trong file settings chưa, nếu có thì chạy Bot
-settings = load_json(SETTINGS_FILE)
-bot_token = settings.get("bot_token")
-if bot_token:
-    # Dùng Thread để chạy bot không làm chặn Flask Web
-    Thread(target=lambda: bot.run(bot_token), daemon=True).start()
-else:
-    print("Chưa có Bot Token. Vào web để nhập!")
+        print("Chưa có Telegram Token. Vào Web để nhập!")
+        while True: time.sleep(3600) # Giữ app sống
