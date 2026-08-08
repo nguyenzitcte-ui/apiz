@@ -1,0 +1,8 @@
+{
+  "github_token": "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",
+  "github_repo": "username/repo-name",
+  "workflow_id": "rdp-premium.yml",
+  "discord_token": "MTMzMDg4Nzk2NDI2NzUxNTkzNA.GWaC25.bZYKyn6kV9qhVwMSXieZBTcLMjiTPVhk-bYrOk",
+  "allowed_channel_ids": [1510665684193902754],
+  "allowed_user_ids": [1345770615000399932]
+}
