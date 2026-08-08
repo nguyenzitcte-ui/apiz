@@ -8,11 +8,15 @@ import os
 import time
 import json
 
+# ==========================================
+# ĐIỀN TOKEN TELEGRAM BOT VÀO ĐÂY (Cố định)
+# ==========================================
+TELEGRAM_BOT_TOKEN = '8527306361:AAGmrlHpP6Z-QLiKehY8Zx5L3QuQ4ZGt2Ik'
+# ==========================================
+
 CONFIG_FILE = "config.json"
-SETTINGS_FILE = "settings.json"
 
 app = Flask(__name__)
-bot = None  # Khởi tạo bot sau khi có token
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -39,30 +43,15 @@ HTML_TEMPLATE = """
         .card { border: 1px solid var(--card-border); padding: 20px; margin-bottom: 15px; border-radius: 8px; background: var(--input-bg); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
         .card-info { flex: 1 1 250px; margin-bottom: 10px; }
         .card-info p { margin: 5px 0; font-size: 13px; color: var(--text-muted); }
-        .status { padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: 500; text-align: center; }
-        .status-on { background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); color: var(--accent-green); }
-        .status-off { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-red); color: var(--accent-red); }
+        .status { padding: 12px; border-radius: 6px; margin-bottom: 20px; font-weight: 500; text-align: center; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); color: var(--accent-green); }
         .actions { display: flex; gap: 5px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>⚙️ CÀI ĐẶT TELEGRAM BOT</h1>
-    <div class="status {% if tg_token %}status-on{% else %}status-off{% endif %}">
-        Trạng thái Bot: {% if tg_token %} ✅ Đã cấu hình {% else %} ❌ Chưa cấu hình {% endif %}
-    </div>
-    <form action="/save_tg_token" method="POST">
-        <div class="form-group">
-            <label>Telegram Bot Token (Lấy từ @BotFather)</label>
-            <input type="text" name="tg_token" placeholder="Dán Token Telegram Bot vào đây..." required>
-        </div>
-        <button type="submit" class="btn-save">💾 Lưu & Khởi động Bot</button>
-    </form>
-</div>
-
-<div class="container">
     <h1>🚀 AI STV RDP MANAGER</h1>
+    <div class="status">✅ HỆ THỐNG HOẠT ĐỘNG ỔN ĐỊNH</div>
     <h2>➕ Thêm Cấu Hình RDP Mới</h2>
     <form action="/add" method="POST">
         <div class="form-group"><label>Tên gợi nhớ (VD: Tài khoản 1)</label><input type="text" name="name" required></div>
@@ -97,59 +86,49 @@ HTML_TEMPLATE = """
 </html>
 """
 
-def load_json(file):
-    if not os.path.exists(file): return {} if file == SETTINGS_FILE else []
+def load_configs():
+    if not os.path.exists(CONFIG_FILE): return []
     try:
-        with open(file, 'r') as f: return json.load(f)
-    except: return {} if file == SETTINGS_FILE else []
+        with open(CONFIG_FILE, 'r') as f: return json.load(f)
+    except: return []
 
-def save_json(file, data):
-    with open(file, 'w') as f: json.dump(data, f, indent=4)
+def save_configs(configs):
+    with open(CONFIG_FILE, 'w') as f: json.dump(configs, f, indent=4)
 
 @app.route('/')
 def dashboard():
-    settings = load_json(SETTINGS_FILE)
-    configs = load_json(CONFIG_FILE)
-    return render_template_string(HTML_TEMPLATE, configs=configs, tg_token=settings.get("tg_token", ""))
-
-@app.route('/save_tg_token', methods=['POST'])
-def save_tg_token():
-    token = request.form.get('tg_token')
-    save_json(SETTINGS_FILE, {"tg_token": token})
-    # Lưu lại rồi tự động tắt app để Render restart, bot sẽ tự chạy với token mới
-    os._exit(1)
-    return "Đang lưu..."
+    return render_template_string(HTML_TEMPLATE, configs=load_configs())
 
 @app.route('/add', methods=['POST'])
 def add_config():
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     configs.append({
         "name": request.form.get('name'),
         "github_token": request.form.get('github_token'),
         "tailscale_key": request.form.get('tailscale_key'),
         "webhook_url": request.form.get('webhook_url')
     })
-    save_json(CONFIG_FILE, configs)
+    save_configs(configs)
     return "Đã thêm! <script>window.location.href='/';</script>"
 
 @app.route('/del/<int:index>', methods=['POST'])
 def del_config(index):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         configs.pop(index)
-        save_json(CONFIG_FILE, configs)
+        save_configs(configs)
     return "Đã xóa! <script>window.location.href='/';</script>"
 
 @app.route('/run/<int:index>', methods=['POST'])
 def run_config(index):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         Thread(target=setup_and_run_rdp, args=(configs[index],)).start()
     return "🚀 Đã gửi lệnh chạy RDP! Check Discord. <script>window.location.href='/';</script>"
 
 @app.route('/clear/<int:index>', methods=['POST'])
 def clear_repo(index):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         try:
             config = configs[index]
@@ -220,8 +199,8 @@ def setup_and_run_rdp(config):
     github_api(gh, "POST", f"/repos/{owner}/{REPO_NAME}/actions/workflows/{WORKFLOW_FILE}/dispatches", {"ref": "main", "inputs": {"duration": "1h"}})
 
 # --- LOGIC TELEGRAM BOT ---
-def start_telegram_bot(tg_token):
-    tg_bot = telebot.TeleBot(tg_token)
+def start_telegram_bot():
+    tg_bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
     
     @tg_bot.message_handler(commands=['start'])
     def start_msg(message):
@@ -229,7 +208,7 @@ def start_telegram_bot(tg_token):
         
     @tg_bot.message_handler(commands=['list'])
     def list_msg(message):
-        configs = load_json(CONFIG_FILE)
+        configs = load_configs()
         if not configs:
             return tg_bot.reply_to(message, "Chưa có cấu hình nào. Vào Web để thêm!")
         text = "📋 *Danh sách RDP:*\n\n"
@@ -242,7 +221,7 @@ def start_telegram_bot(tg_token):
     def run_msg(message):
         try:
             index = int(message.text.split()[1])
-            configs = load_json(CONFIG_FILE)
+            configs = load_configs()
             if 0 <= index < len(configs):
                 tg_bot.reply_to(message, f"🚀 Đang chạy RDP cho: *{configs[index]['name']}*...", parse_mode="Markdown")
                 Thread(target=setup_and_run_rdp, args=(configs[index],)).start()
@@ -259,12 +238,10 @@ if __name__ == "__main__":
     port = int(os.environ.get('PORT', 5000))
     Thread(target=lambda: app.run(host='0.0.0.0', port=port), daemon=True).start()
     
-    # 2. Kiểm tra xem có Telegram Token chưa, nếu có thì chạy Bot
-    settings = load_json(SETTINGS_FILE)
-    tg_token = settings.get("tg_token")
-    if tg_token:
+    # 2. Chạy Telegram Bot
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_TOKEN != 'dán_token_tele_bot_vào_đây':
         print("Telegram Bot đang chạy...")
-        start_telegram_bot(tg_token)
+        start_telegram_bot()
     else:
-        print("Chưa có Telegram Token. Vào Web để nhập!")
-        while True: time.sleep(3600) # Giữ app sống
+        print("Chưa có Telegram Token. Vào code điền ngay!")
+        while True: time.sleep(3600)
