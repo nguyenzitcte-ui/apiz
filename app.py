@@ -9,8 +9,11 @@ import os
 import time
 import json
 
+# ==========================================
+DISCORD_BOT_TOKEN = 'dán_token_bot_discord_vào_đây'
+# ==========================================
+
 CONFIG_FILE = "config.json"
-SETTINGS_FILE = "settings.json"
 
 app = Flask(__name__)
 
@@ -18,157 +21,163 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AI STV RDP Manager</title>
+    <title>AI STV | RDP Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h1, h2 { color: #333; border-bottom: 2px solid #f4f7f6; padding-bottom: 10px; }
+        :root {
+            --bg-color: #0f1115;
+            --card-bg: #1a1d24;
+            --card-border: #2a2f3a;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --input-bg: #111318;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text-main); padding: 20px; margin: 0; }
+        .container { max-width: 800px; margin: auto; background: var(--card-bg); padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); margin-bottom: 25px; border: 1px solid var(--card-border); }
+        h1, h2 { color: var(--text-main); border-bottom: 1px solid var(--card-border); padding-bottom: 12px; font-weight: 500; margin-top: 0; }
+        h3 { margin: 0 0 10px 0; color: var(--accent-blue); font-weight: 500; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #28a745; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; margin-top: 5px;}
-        button:hover { opacity: 0.9; }
-        .card { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fafafa; }
-        .btn-run { background-color: #007bff; }
-        .btn-del { background-color: #dc3545; }
-        .btn-clear { background-color: #ffc107; color: black; }
-        .btn-save { background-color: #6c757d; }
-        .status { padding: 10px; background: #e9ecef; border-radius: 4px; margin-bottom: 15px; }
+        label { display: block; margin-bottom: 8px; color: var(--text-muted); font-size: 14px; font-weight: 500; }
+        input[type="text"] { width: 100%; padding: 12px; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 6px; color: var(--text-main); box-sizing: border-box; font-size: 14px; transition: 0.2s; }
+        input[type="text"]:focus { outline: none; border-color: var(--accent-blue); }
+        button { padding: 10px 16px; border: none; border-radius: 6px; cursor: pointer; margin-right: 8px; margin-top: 8px; font-weight: 500; font-size: 14px; transition: 0.2s; }
+        button:hover { opacity: 0.85; }
+        .btn-save { background: var(--accent-blue); color: white; width: 100%; }
+        .btn-run { background: var(--accent-green); color: white; }
+        .btn-clear { background: var(--accent-yellow); color: black; }
+        .btn-del { background: var(--accent-red); color: white; }
+        .card { border: 1px solid var(--card-border); padding: 20px; margin-bottom: 15px; border-radius: 8px; background: var(--input-bg); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .card-info { flex: 1 1 250px; margin-bottom: 10px; }
+        .card-info p { margin: 5px 0; font-size: 13px; color: var(--text-muted); }
+        .status { padding: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--accent-green); border-radius: 6px; margin-bottom: 20px; color: var(--accent-green); font-weight: 500; text-align: center; }
+        .actions { display: flex; gap: 5px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>⚙️ CÀI ĐẶT HỆ THỐNG</h1>
-    <div class="status">
-        Trạng thái Bot: {% if bot_token %} ✅ Đã cấu hình {% else %} ❌ Chưa cấu hình {% endif %}
-    </div>
-    <form action="/save_bot_token" method="POST">
-        <div class="form-group">
-            <label>Discord Bot Token</label>
-            <input type="text" name="bot_token" value="{{ bot_token }}" placeholder="Dán Token Bot Discord vào đây...">
-        </div>
-        <button type="submit" class="btn-save">💾 Lưu & Khởi động Bot</button>
-    </form>
-</div>
-
-<div class="container">
-    <h1>🚀 AI STV RDP MANAGER</h1>
+    <h1>⚙️ AI STV RDP MANAGER</h1>
+    <div class="status">✅ HỆ THỐNG HOẠT ĐỘNG ỔN ĐỊNH</div>
     
-    <h2>➕ Thêm Cấu Hình RDP Mới</h2>
+    <h2>➕ Thêm Cấu Hình Mới</h2>
     <form action="/add" method="POST">
         <div class="form-group">
             <label>Tên gợi nhớ (VD: Tài khoản 1)</label>
             <input type="text" name="name" required>
         </div>
         <div class="form-group">
-            <label>GitHub Token (All quyền)</label>
+            <label>GitHub Token</label>
             <input type="text" name="github_token" required>
         </div>
         <div class="form-group">
-            <label>Tailscale Auth Key (tskey-auth...)</label>
+            <label>Tailscale Auth Key</label>
             <input type="text" name="tailscale_key" required>
         </div>
         <div class="form-group">
             <label>Discord Webhook URL</label>
             <input type="text" name="webhook_url" required>
         </div>
-        <button type="submit">Lưu Cấu Hình</button>
+        <button type="submit" class="btn-save">💾 Lưu Cấu Hình</button>
     </form>
+</div>
 
+<div class="container">
     <h2>📋 Danh Sách RDP</h2>
     {% if configs.length == 0 %}
-        <p>Chưa có cấu hình nào. Hãy thêm ở trên!</p>
+        <p style="color: var(--text-muted);">Chưa có cấu hình nào. Hãy thêm ở trên!</p>
     {% else %}
         {% for c in configs %}
         <div class="card">
-            <h3>{{ c.name }}</h3>
-            <p><b>GitHub:</b> {{ c.github_token[:10] }}...{{ c.github_token[-4:] }}</p>
-            <p><b>Tailscale:</b> {{ c.tailscale_key[:10] }}...</p>
-            
-            <form action="/run/{{ loop.index0 }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn-run">🚀 Chạy RDP / Chạy lại</button>
-            </form>
-            <form action="/clear/{{ loop.index0 }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn-clear">🧹 Xóa Repo GitHub</button>
-            </form>
-            <form action="/del/{{ loop.index0 }}" method="POST" style="display:inline;">
-                <button type="submit" class="btn-del">🗑️ Xóa Cấu Hình</button>
-            </form>
+            <div class="card-info">
+                <h3>{{ c.name }}</h3>
+                <p><b>GitHub:</b> {{ c.github_token[:10] }}...{{ c.github_token[-4:] }}</p>
+                <p><b>Tailscale:</b> {{ c.tailscale_key[:10] }}...</p>
+            </div>
+            <div class="actions">
+                <form action="/run/{{ loop.index0 }}" method="POST">
+                    <button type="submit" class="btn-run">🚀 Chạy</button>
+                </form>
+                <form action="/clear/{{ loop.index0 }}" method="POST">
+                    <button type="submit" class="btn-clear">🧹 Xóa Repo</button>
+                </form>
+                <form action="/del/{{ loop.index0 }}" method="POST">
+                    <button type="submit" class="btn-del">🗑️ Xóa</button>
+                </form>
+            </div>
         </div>
         {% endfor %}
     {% endif %}
 </div>
+
 </body>
 </html>
 """
 
-def load_json(file):
-    if not os.path.exists(file):
-        return {} if file == SETTINGS_FILE else []
-    with open(file, 'r') as f:
-        return json.load(f)
+def load_configs():
+    if not os.path.exists(CONFIG_FILE):
+        return []
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            return json.load(f)
+    except:
+        return []
 
-def save_json(file, data):
-    with open(file, 'w') as f:
-        json.dump(data, f, indent=4)
+def save_configs(configs):
+    with open(CONFIG_FILE, 'w') as f:
+        json.dump(configs, f, indent=4)
 
 @app.route('/')
 def dashboard():
-    settings = load_json(SETTINGS_FILE)
-    configs = load_json(CONFIG_FILE)
-    return render_template_string(HTML_TEMPLATE, configs=configs, bot_token=settings.get("bot_token", ""))
-
-@app.route('/save_bot_token', methods=['POST'])
-def save_bot_token():
-    save_json(SETTINGS_FILE, {"bot_token": request.form.get('bot_token')})
-    # Tự động crash app để Render tự động Restart, từ đó bot sẽ lấy token mới mà chạy
-    os._exit(1)
-    return "Đang lưu..."
+    configs = load_configs()
+    return render_template_string(HTML_TEMPLATE, configs=configs)
 
 @app.route('/add', methods=['POST'])
 def add_config():
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     configs.append({
         "name": request.form.get('name'),
         "github_token": request.form.get('github_token'),
         "tailscale_key": request.form.get('tailscale_key'),
         "webhook_url": request.form.get('webhook_url')
     })
-    save_json(CONFIG_FILE, configs)
-    return "Đã thêm! <a href='/'>Quay lại</a>"
+    save_configs(configs)
+    return "Đã thêm! <script>window.location.href='/';</script>"
 
 @app.route('/del/<int:index>', methods=['POST'])
 def del_config(index):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         configs.pop(index)
-        save_json(CONFIG_FILE, configs)
-    return "Đã xóa! <a href='/'>Quay lại</a>"
+        save_configs(configs)
+    return "Đã xóa! <script>window.location.href='/';</script>"
 
 @app.route('/run/<int:index>', methods=['POST'])
 def run_config(index):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         Thread(target=setup_and_run_rdp, args=(configs[index],)).start()
-        return "🚀 Đã gửi lệnh chạy RDP! Check Discord để nhận IP và Mật khẩu. <a href='/'>Quay lại</a>"
+        return "🚀 Đã gửi lệnh chạy! Check Discord. <script>window.location.href='/';</script>"
     return "Lỗi!"
 
 @app.route('/clear/<int:index>', methods=['POST'])
 def clear_repo(index):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         config = configs[index]
         try:
             user_info = github_api(config['github_token'], "GET", "/user").json()
             owner = user_info['login']
             github_api(config['github_token'], "DELETE", f"/repos/{owner}/AISTV-AUTO-RDP")
-            return "🧹 Đã xóa Repo GitHub! <a href='/'>Quay lại</a>"
+            return "🧹 Đã xóa Repo! <script>window.location.href='/';</script>"
         except:
-            return "Lỗi xóa repo. <a href='/'>Quay lại</a>"
+            return "Lỗi xóa repo. <script>window.location.href='/';</script>"
     return "Lỗi!"
 
-# --- LOGIC BOT DISCORD & GITHUB ---
+# --- LOGIC BOT & GITHUB ---
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -245,10 +254,7 @@ jobs:
 """
 
 def github_api(token, method, endpoint, data=None):
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     res = requests.request(method, f"https://api.github.com{endpoint}", headers=headers, json=data)
     return res
 
@@ -270,11 +276,9 @@ def setup_and_run_rdp(config):
     user_info = github_api(gh_token, "GET", "/user").json()
     owner = user_info['login']
     
-    # Tạo Repo (nếu đã có thì báo lỗi nhưng ta bỏ qua lỗi đó)
     github_api(gh_token, "POST", "/user/repos", {"name": REPO_NAME, "private": True})
     time.sleep(3)
     
-    # Lấy SHA của file cũ nếu có (để update thay vì tạo mới)
     sha = None
     file_res = github_api(gh_token, "GET", f"/repos/{owner}/{REPO_NAME}/contents/.github/workflows/{WORKFLOW_FILE}")
     if file_res.status_code == 200:
@@ -285,10 +289,8 @@ def setup_and_run_rdp(config):
     if sha: payload["sha"] = sha
     
     github_api(gh_token, "PUT", f"/repos/{owner}/{REPO_NAME}/contents/.github/workflows/{WORKFLOW_FILE}", payload)
-    
     create_github_secret(gh_token, owner, REPO_NAME, "TAILSCALE_AUTH_KEY", ts_key)
     create_github_secret(gh_token, owner, REPO_NAME, "DISCORD_WEBHOOK", wh_url)
-    
     github_api(gh_token, "POST", f"/repos/{owner}/{REPO_NAME}/actions/workflows/{WORKFLOW_FILE}/dispatches", {"ref": "main", "inputs": {"duration": "1h"}})
 
 @bot.event
@@ -297,7 +299,7 @@ async def on_ready():
 
 @bot.command()
 async def rdp(ctx):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if not configs:
         await ctx.send("Chưa có cấu hình nào. Vào web để thêm!")
         return
@@ -310,25 +312,16 @@ async def rdp(ctx):
 
 @bot.command()
 async def run(ctx, index: int):
-    configs = load_json(CONFIG_FILE)
+    configs = load_configs()
     if 0 <= index < len(configs):
         await ctx.send(f"🚀 Đang chạy RDP cho: {configs[index]['name']}...")
         Thread(target=setup_and_run_rdp, args=(configs[index],)).start()
     else:
         await ctx.send("Số thứ tự không hợp lệ!")
 
-if __name__ == "__main__":
-    # Chạy Flask (Web)
-    port = int(os.environ.get('PORT', 5000))
-    Thread(target=lambda: app.run(host='0.0.0.0', port=port)).start()
-    
-    # Chạy Bot Discord (nếu đã có Token trên Web)
-    settings = load_json(SETTINGS_FILE)
-    bot_token = settings.get("bot_token")
-    if bot_token:
-        bot.run(bot_token)
-    else:
-        print("Chưa có Bot Token. Vào web để nhập!")
-        # Giữ cho app chạy tiếp tục nếu chưa có token
-        while True:
-            time.sleep(3600)
+# Khởi động Bot nền (chạy cùng lúc với Gunicorn Web Server)
+def start_bot():
+    if DISCORD_BOT_TOKEN and DISCORD_BOT_TOKEN != 'dán_token_bot_discord_vào_đây':
+        bot.run(DISCORD_BOT_TOKEN)
+
+Thread(target=start_bot, daemon=True).start()
